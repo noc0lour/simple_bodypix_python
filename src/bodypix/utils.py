@@ -5,10 +5,10 @@ import numpy as np
 from collections import namedtuple
 
 import tensorflow as tf
-# import tensorflowjs as tfjs
+import tensorflowjs as tfjs
 import tensorflowjs.converters.common as tfjs_common
 from tensorflowjs.read_weights import read_weights
-from google.protobuf.json_format import ParseDict
+from google.protobuf.json_format import ParseDict, MessageToDict
 
 TFJS_NODE_KEY = 'node'
 
