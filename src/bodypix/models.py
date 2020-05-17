@@ -9,6 +9,9 @@ import tempfile
 import os
 import tfjs_graph_converter.api as tfjs
 
+import logging
+logger = logging.getLogger(__name__)
+
 base_url = "https://storage.googleapis.com/tfjs-models/savedmodel/bodypix/"
 
 def load_model(model_type, stride, quant_bytes, multiplier):
@@ -33,7 +36,6 @@ def load_model(model_type, stride, quant_bytes, multiplier):
             model_js.write(json.dumps(graph_data))
         for weight in graph_data['weightsManifest'][0]['paths']:
             weight_url = query_url + f"{weight}"
-            print(weight_url)
             response = urllib.request.urlopen(weight_url)
             with open(os.path.join(temp_dir, weight), 'wb') as wf:
                 wf.write(response.read())
