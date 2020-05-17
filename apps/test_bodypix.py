@@ -14,6 +14,7 @@ import ctypes
 import multiprocessing as mp
 import numpy as np
 import pyfakewebcam
+import time
 
 
 def parse_args():
@@ -23,7 +24,7 @@ def parse_args():
 
 
 def processing_loop(input_buffer, input_shape, segmentation_buffer, segmentation_shape):
-    proc = processor.Processor(quant_bytes=4, stride=32)
+    proc = processor.Processor(quant_bytes=2, stride=32)
     segmentation_array = np.frombuffer(
         segmentation_buffer.get_obj(), dtype=np.uint8
     ).reshape(segmentation_shape)
@@ -36,14 +37,19 @@ def processing_loop(input_buffer, input_shape, segmentation_buffer, segmentation
         with input_buffer.get_lock():
             np.copyto(data, input_array)
 
+        start = time.perf_counter()
         results = proc.process_image(data)
+        end = time.perf_counter()
+        print("time: ", end - start)
         segmentation = proc.evaluate_segmentation(results[4], data)
         with segmentation_buffer.get_lock():
             np.copyto(segmentation_array, segmentation)
 
 
 def viewer_loop(input_buffer, input_shape, segmentation_buffer, segmentation_shape):
-    capture = acapture.open(0)
+    capture = cv2.VideoCapture(0)
+    capture.set(3, 640)
+    capture.set(4, 480)
     input_array = np.frombuffer(input_buffer.get_obj(), dtype=np.uint8).reshape(
         input_shape
     )
@@ -52,13 +58,14 @@ def viewer_loop(input_buffer, input_shape, segmentation_buffer, segmentation_sha
     ).reshape(segmentation_shape)
 
     background = PIL.Image.new("RGB", (input_shape[1], input_shape[0]), (0, 177, 64))
-    camera = pyfakewebcam.FakeWebcam("/dev/video2", 1280, 800)
+    camera = pyfakewebcam.FakeWebcam("/dev/video2", 640, 480)
 
     def loop():
-        with input_buffer.get_lock():
-            check, camera_input = capture.read()
-            np.copyto(input_array, camera_input)
+        check, camera_input = capture.read()
         if check:
+            camera_input = cv2.cvtColor(camera_input,cv2.COLOR_BGR2RGB)
+            with input_buffer.get_lock():
+                np.copyto(input_array, camera_input)
             img = PIL.Image.fromarray(camera_input)
             # Do this async on latest frame only
             with segmentation_buffer.get_lock():
@@ -89,8 +96,8 @@ def main():
         logging.getLogger("").setLevel(logging.DEBUG)
 
     cap_dtype = np.uint8
-    cap_shape = (800, 1280, 3)
-    seg_shape = (800, 1280)
+    cap_shape = (480, 640, 3)
+    seg_shape = (480, 640)
 
     input_buffer = mp.Array(
         np.ctypeslib.as_ctypes_type(cap_dtype), int(np.prod(cap_shape))
@@ -100,7 +107,7 @@ def main():
     )
     np.copyto(
         np.frombuffer(segmentation_buffer.get_obj(), dtype=cap_dtype),
-        np.full((800 * 1280), 255, dtype=cap_dtype),
+        np.full((int(np.prod(seg_shape))), 255, dtype=cap_dtype),
     )
     procs = []
     # procs.append(
